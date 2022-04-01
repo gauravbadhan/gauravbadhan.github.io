@@ -1,0 +1,78 @@
+<h2>Building Azure devOps build and release pipelines for a .Net Web API to be deployed on Azure App Service</h2>
+<p>
+    Building Azure build and release pipelines is  pretty straightforward as everything can be done by selecting tasks on the devops portal
+    But sometimes you can get stuck to find correct tasks/options/sequence that suits your project structure.
+</p>
+<p>
+    This example shows how to setup a YAML build pipeline for a .NET 6 based Web API
+</p>
+<p>
+    Step 1: Go to Azure DevOps portal > Pipelines and Click <b>New Pipeline</b> button on the top right.
+    Step 2: Select your Repo and type of project as Starter pipeline
+    Step 3: Change the pool vmImage variable to <code> vmImageName: 'windows-2022'</code>
+    Step 4: Add another variable <b>workingDirectory</b>
+    <code>
+        variables:
+        # Agent VM image name
+        vmImageName: 'windows-2022'
+      
+        # Working Directory
+        workingDirectory: '$(System.DefaultWorkingDirectory)'
+      </code>
+</p>
+<p>
+    
+</p>
+
+<code>
+stages:
+- stage: Build
+  displayName: Build stage
+
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+
+    steps:
+    - task: NuGetToolInstaller@1
+      inputs:
+        versionSpec: 
+        checkLatest: true
+    - task: NuGetCommand@2
+      displayName: Restore Nuget packages
+      inputs:
+        command: 'restore'
+        restoreSolution: '**/*.sln'
+        feedsToUse: 'select'
+        vstsFeed: 'b74b9357-a1d2-434a-90f9-d17d2ddef189'
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: 'publish'
+        zipAfterPublish: false
+        publishWebProjects: true
+        modifyOutputPath: false
+        projects: '**/*.csproj'
+        arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration Release
+
+    - task: DotNetCoreCLI@2
+      displayName: Run Tests
+      inputs:
+        command: 'test'
+        projects: '**/*Test.csproj'        
+        configuration: '$(BuildConfiguration)'        
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive files'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+        replaceExistingArchive: true
+
+    - publish: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+      artifact: drop
+</code>
